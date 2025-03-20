@@ -220,6 +220,10 @@ export const configSchema: zod.ZodType<NextConfig> = z.lazy(() =>
           }),
         ]),
         define: z.record(z.string(), z.string()).optional(),
+        afterProductionBuild: z
+          .function()
+          .returns(z.promise(z.void()))
+          .optional(),
       })
       .optional(),
     compress: z.boolean().optional(),
@@ -456,6 +460,16 @@ export const configSchema: zod.ZodType<NextConfig> = z.lazy(() =>
           })
           .optional(),
         clientInstrumentationHook: z.boolean().optional(),
+        afterProductionBuild: z
+          .function()
+          .args(
+            z.object({
+              projectDir: z.string(),
+              distDir: z.string(),
+            })
+          )
+          .returns(z.promise(z.void()))
+          .optional(),
       })
       .optional(),
     exportPathMap: z
