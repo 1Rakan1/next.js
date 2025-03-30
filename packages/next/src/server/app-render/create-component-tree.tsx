@@ -393,7 +393,7 @@ async function createComponentTreeInternal({
 
   // Resolve the segment param
   const actualSegment = segmentParam ? segmentParam.treeSegment : segment
-  const metadata = StreamingMetadata ? <StreamingMetadata /> : undefined
+  const metadata = undefined // StreamingMetadata ? <StreamingMetadata /> : undefined
 
   // Use the same condition to render metadataOutlet as metadata
   const metadataOutlet = StreamingMetadataOutlet ? (
