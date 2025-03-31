@@ -7,8 +7,7 @@ use anyhow::{bail, Result};
 use swc_core::common::pass::Either;
 use turbo_rcstr::RcStr;
 use turbo_tasks::{
-    FxIndexSet, ResolvedVc, TryFlatJoinIterExt, TryJoinIterExt, Value, ValueDefault, ValueToString,
-    Vc,
+    FxIndexSet, ResolvedVc, TryFlatJoinIterExt, TryJoinIterExt, ValueDefault, ValueToString, Vc,
 };
 use turbo_tasks_fs::{rope::Rope, File, FileSystem, FileSystemPath};
 use turbopack_core::{
@@ -307,7 +306,7 @@ impl OutputAsset for CssChunk {
 
         Ok(self
             .chunking_context
-            .chunk_path(AssetIdent::new(Value::new(ident)), ".css".into()))
+            .chunk_path(AssetIdent::new(ident), ".css".into()))
     }
 
     #[turbo_tasks::function]

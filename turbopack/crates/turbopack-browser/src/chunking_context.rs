@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use tracing::Instrument;
 use turbo_rcstr::RcStr;
-use turbo_tasks::{ResolvedVc, TryJoinIterExt, Upcast, Value, ValueToString, Vc};
+use turbo_tasks::{ResolvedVc, TaskInput, TryJoinIterExt, Upcast, ValueToString, Vc};
 use turbo_tasks_fs::FileSystemPath;
 use turbopack_core::{
     chunk::{
@@ -110,7 +110,7 @@ impl BrowserChunkingContextBuilder {
     }
 
     pub fn build(self) -> Vc<BrowserChunkingContext> {
-        BrowserChunkingContext::new(Value::new(self.chunking_context))
+        BrowserChunkingContext::new(self.chunking_context)
     }
 }
 
@@ -121,7 +121,7 @@ impl BrowserChunkingContextBuilder {
 /// It splits "node_modules" separately as these are less likely to change
 /// during development
 #[turbo_tasks::value(serialization = "auto_for_input")]
-#[derive(Debug, Clone, Hash)]
+#[derive(Debug, Clone, Hash, TaskInput)]
 pub struct BrowserChunkingContext {
     name: Option<RcStr>,
     /// The root path of the project
@@ -238,8 +238,8 @@ impl BrowserChunkingContext {
 #[turbo_tasks::value_impl]
 impl BrowserChunkingContext {
     #[turbo_tasks::function]
-    fn new(this: Value<BrowserChunkingContext>) -> Vc<Self> {
-        this.into_value().cell()
+    fn new(this: BrowserChunkingContext) -> Vc<Self> {
+        this.cell()
     }
 
     #[turbo_tasks::function]
@@ -266,7 +266,7 @@ impl BrowserChunkingContext {
         ident: Vc<AssetIdent>,
         evaluatable_assets: Vc<EvaluatableAssets>,
         other_chunks: Vc<OutputAssets>,
-        source: Value<EcmascriptDevChunkListSource>,
+        source: EcmascriptDevChunkListSource,
     ) -> Vc<Box<dyn OutputAsset>> {
         Vc::upcast(EcmascriptDevChunkList::new(
             self,
@@ -433,13 +433,12 @@ impl ChunkingContext for BrowserChunkingContext {
         ident: Vc<AssetIdent>,
         chunk_group: ChunkGroup,
         module_graph: Vc<ModuleGraph>,
-        availability_info: Value<AvailabilityInfo>,
+        availability_info: AvailabilityInfo,
     ) -> Result<Vc<ChunkGroupResult>> {
         let span = tracing::info_span!("chunking", ident = ident.to_string().await?.to_string());
         async move {
             let this = self.await?;
             let modules = chunk_group.entries();
-            let input_availability_info = availability_info.into_value();
             let MakeChunkGroupResult {
                 chunks,
                 availability_info,
@@ -447,7 +446,7 @@ impl ChunkingContext for BrowserChunkingContext {
                 modules,
                 module_graph,
                 ResolvedVc::upcast(self),
-                input_availability_info,
+                availability_info,
             )
             .await?;
 
@@ -459,7 +458,7 @@ impl ChunkingContext for BrowserChunkingContext {
 
             if this.enable_hot_module_replacement {
                 let mut ident = ident;
-                match input_availability_info {
+                match availability_info {
                     AvailabilityInfo::Root => {}
                     AvailabilityInfo::Untracked => {
                         ident = ident.with_modifier(Vc::cell("untracked".into()));
@@ -475,7 +474,7 @@ impl ChunkingContext for BrowserChunkingContext {
                         ident,
                         EvaluatableAssets::empty(),
                         Vc::cell(assets.clone()),
-                        Value::new(EcmascriptDevChunkListSource::Dynamic),
+                        EcmascriptDevChunkListSource::Dynamic,
                     )
                     .to_resolved()
                     .await?,
@@ -498,7 +497,7 @@ impl ChunkingContext for BrowserChunkingContext {
         ident: Vc<AssetIdent>,
         chunk_group: ChunkGroup,
         module_graph: Vc<ModuleGraph>,
-        availability_info: Value<AvailabilityInfo>,
+        availability_info: AvailabilityInfo,
     ) -> Result<Vc<ChunkGroupResult>> {
         let span = {
             let ident = ident.to_string().await?.to_string();
@@ -506,7 +505,6 @@ impl ChunkingContext for BrowserChunkingContext {
         };
         async move {
             let this = self.await?;
-            let availability_info = availability_info.into_value();
 
             let entries = chunk_group.entries();
 
@@ -545,7 +543,7 @@ impl ChunkingContext for BrowserChunkingContext {
                         ident,
                         entries,
                         other_assets,
-                        Value::new(EcmascriptDevChunkListSource::Entry),
+                        EcmascriptDevChunkListSource::Entry,
                     )
                     .to_resolved()
                     .await?,
@@ -575,7 +573,7 @@ impl ChunkingContext for BrowserChunkingContext {
         _evaluatable_assets: Vc<EvaluatableAssets>,
         _module_graph: Vc<ModuleGraph>,
         _extra_chunks: Vc<OutputAssets>,
-        _availability_info: Value<AvailabilityInfo>,
+        _availability_info: AvailabilityInfo,
     ) -> Result<Vc<EntryChunkGroupResult>> {
         bail!("Browser chunking context does not support entry chunk groups")
     }
@@ -590,7 +588,7 @@ impl ChunkingContext for BrowserChunkingContext {
         self: Vc<Self>,
         module: Vc<Box<dyn ChunkableModule>>,
         module_graph: Vc<ModuleGraph>,
-        availability_info: Value<AvailabilityInfo>,
+        availability_info: AvailabilityInfo,
     ) -> Result<Vc<Box<dyn ChunkItem>>> {
         Ok(if self.await?.manifest_chunks {
             let manifest_asset =

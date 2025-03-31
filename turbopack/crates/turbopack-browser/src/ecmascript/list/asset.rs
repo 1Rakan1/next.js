@@ -1,6 +1,6 @@
 use anyhow::Result;
 use turbo_rcstr::RcStr;
-use turbo_tasks::{ResolvedVc, Value, ValueToString, Vc};
+use turbo_tasks::{ResolvedVc, TaskInput, ValueToString, Vc};
 use turbo_tasks_fs::FileSystemPath;
 use turbopack_core::{
     asset::{Asset, AssetContent},
@@ -42,14 +42,14 @@ impl EcmascriptDevChunkList {
         ident: ResolvedVc<AssetIdent>,
         evaluatable_assets: ResolvedVc<EvaluatableAssets>,
         chunks: ResolvedVc<OutputAssets>,
-        source: Value<EcmascriptDevChunkListSource>,
+        source: EcmascriptDevChunkListSource,
     ) -> Vc<Self> {
         EcmascriptDevChunkList {
             chunking_context,
             ident,
             evaluatable_assets,
             chunks,
-            source: source.into_value(),
+            source,
         }
         .cell()
     }
@@ -106,7 +106,7 @@ impl OutputAsset for EcmascriptDevChunkList {
         // ident, because it must remain stable whenever a chunk is added or
         // removed from the list.
 
-        let ident = AssetIdent::new(Value::new(ident));
+        let ident = AssetIdent::new(ident);
         Ok(self.chunking_context.chunk_path(ident, ".js".into()))
     }
 
@@ -129,7 +129,7 @@ impl Asset for EcmascriptDevChunkList {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash)]
+#[derive(Debug, Clone, Copy, Hash, TaskInput)]
 #[turbo_tasks::value(serialization = "auto_for_input")]
 #[serde(rename_all = "camelCase")]
 pub enum EcmascriptDevChunkListSource {

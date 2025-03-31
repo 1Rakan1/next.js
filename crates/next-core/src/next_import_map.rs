@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use anyhow::{Context, Result};
 use rustc_hash::FxHashMap;
 use turbo_rcstr::RcStr;
-use turbo_tasks::{fxindexmap, FxIndexMap, ResolvedVc, Value, Vc};
+use turbo_tasks::{fxindexmap, FxIndexMap, ResolvedVc, Vc};
 use turbo_tasks_fs::{FileSystem, FileSystemPath};
 use turbopack_core::{
     reference_type::{CommonJsReferenceSubType, ReferenceType},
@@ -90,7 +90,7 @@ const EDGE_UNSUPPORTED_NODE_INTERNALS: [&str; 44] = [
 #[turbo_tasks::function]
 pub async fn get_next_client_import_map(
     project_path: ResolvedVc<FileSystemPath>,
-    ty: Value<ClientContextType>,
+    ty: ClientContextType,
     next_config: Vc<NextConfig>,
     execution_context: Vc<ExecutionContext>,
 ) -> Result<Vc<ImportMap>> {
@@ -115,7 +115,7 @@ pub async fn get_next_client_import_map(
     )
     .await?;
 
-    match ty.into_value() {
+    match ty {
         ClientContextType::Pages { .. } => {}
         ClientContextType::App { app_dir } => {
             let react_flavor = if *next_config.enable_ppr().await?
@@ -229,7 +229,7 @@ pub async fn get_next_client_import_map(
         },
     );
 
-    match ty.into_value() {
+    match ty {
         ClientContextType::Pages { .. }
         | ClientContextType::App { .. }
         | ClientContextType::Fallback => {
@@ -283,12 +283,10 @@ pub async fn get_next_build_import_map() -> Result<Vc<ImportMap>> {
 /// Computes the Next-specific client fallback import map, which provides
 /// polyfills to Node.js externals.
 #[turbo_tasks::function]
-pub async fn get_next_client_fallback_import_map(
-    ty: Value<ClientContextType>,
-) -> Result<Vc<ImportMap>> {
+pub async fn get_next_client_fallback_import_map(ty: ClientContextType) -> Result<Vc<ImportMap>> {
     let mut import_map = ImportMap::empty();
 
-    match ty.into_value() {
+    match ty {
         ClientContextType::Pages {
             pages_dir: context_dir,
         }
@@ -313,7 +311,7 @@ pub async fn get_next_client_fallback_import_map(
 #[turbo_tasks::function]
 pub async fn get_next_server_import_map(
     project_path: ResolvedVc<FileSystemPath>,
-    ty: Value<ServerContextType>,
+    ty: ServerContextType,
     next_config: Vc<NextConfig>,
     execution_context: Vc<ExecutionContext>,
 ) -> Result<Vc<ImportMap>> {
@@ -335,8 +333,6 @@ pub async fn get_next_server_import_map(
         [],
     )
     .await?;
-
-    let ty = ty.into_value();
 
     let external = ImportMapping::External(None, ExternalType::CommonJs, ExternalTraced::Traced)
         .resolved_cell();
@@ -404,7 +400,7 @@ pub async fn get_next_server_import_map(
 #[turbo_tasks::function]
 pub async fn get_next_edge_import_map(
     project_path: ResolvedVc<FileSystemPath>,
-    ty: Value<ServerContextType>,
+    ty: ServerContextType,
     next_config: Vc<NextConfig>,
     execution_context: Vc<ExecutionContext>,
 ) -> Result<Vc<ImportMap>> {
@@ -471,7 +467,6 @@ pub async fn get_next_edge_import_map(
     )
     .await?;
 
-    let ty = ty.into_value();
     match ty {
         ServerContextType::Pages { .. }
         | ServerContextType::PagesData { .. }
@@ -1027,8 +1022,8 @@ async fn insert_next_shared_aliases(
 pub async fn get_next_package(context_directory: Vc<FileSystemPath>) -> Result<Vc<FileSystemPath>> {
     let result = resolve(
         context_directory,
-        Value::new(ReferenceType::CommonJs(CommonJsReferenceSubType::Undefined)),
-        Request::parse(Value::new(Pattern::Constant("next/package.json".into()))),
+        ReferenceType::CommonJs(CommonJsReferenceSubType::Undefined),
+        Request::parse(Pattern::Constant("next/package.json".into())),
         node_cjs_resolve_options(context_directory.root()),
     );
     let source = result
