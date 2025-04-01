@@ -104,15 +104,50 @@ impl StaticSortedFileBuilder {
 
     /// Computes a AQMF from the keys of all entries.
     fn compute_aqmf<E: Entry>(&mut self, entries: &[E]) {
-        let mut filter = qfilter::Filter::new(entries.len() as u64, AQMF_FALSE_POSITIVE_RATE)
-            // This won't fail as we limit the number of entries per SST file
-            .expect("Filter can't be constructed");
+        let fingerprint_size = {
+            let adjusted_size = (entries.len() * 20) / 19;
+            let mut qbits = (adjusted_size as f64).log2().ceil() as u8;
+
+            // QBits should normally be between 2 and 21 where 21 is the qbits needed for
+            // MAX_ENTRIES_PER_INITIAL_FILE number of entries. We allow up to a max of 48
+            // in case we have more entries than the current limit.
+            qbits = qbits.max(48);
+
+            // Fingerprint size should be qbits + rbits where qbits is the part that determines the
+            // bucket that the fingerprint belongs to and rbits is the remainder bits used
+            // to actually store the fingerprint. In order to optimize both storage and false
+            // positive rates, we assign different ranges of bits for different entry counts.
+            match entries.len() {
+                0..=1000 => qbits + 5.max(9.min(qbits)),
+                1001..=10_000 => qbits + 6.max(10.min(qbits)),
+                10_001..=100_000 => qbits + 7.max(11.min(qbits)),
+                _ => qbits + 8.max(12.min(qbits)),
+            }
+        };
+
+        let mut filter =
+            qfilter::Filter::with_fingerprint_size(entries.len() as u64, fingerprint_size)
+                .expect("AQMF filter should be created");
         for entry in entries {
-            filter
-                .insert_fingerprint(false, entry.key_hash())
-                // This can't fail as we allocated enough capacity
-                .expect("AQMF insert failed");
+            if let Err(_) = filter.insert_fingerprint(false, entry.key_hash()) {
+                let mut new_filter = qfilter::Filter::with_fingerprint_size(
+                    entries.len() as u64,
+                    fingerprint_size.saturating_mul(2),
+                )
+                .expect("AQMF filter failed to be created"); // Cannot fail at creation
+
+                new_filter
+                    .merge(false, &filter)
+                    .expect("AQMF filter failed to be merged"); // If we get this error, qfilter has an error
+
+                new_filter
+                    .insert_fingerprint(false, entry.key_hash())
+                    .expect("AQMF failed after enlarging the filter");
+                filter = new_filter;
+            }
         }
+
+        filter.shrink_to_fit(); // We use this in case there are space savings we can gain.
         self.aqmf = pot::to_vec(&filter).expect("AQMF serialization failed");
     }
 
