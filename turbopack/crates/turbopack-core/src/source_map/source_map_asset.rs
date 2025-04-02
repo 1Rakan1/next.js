@@ -46,7 +46,7 @@ impl OutputAsset for SourceMapAsset {
         let this = self.await?;
         Ok(this
             .chunking_context
-            .chunk_path(*this.ident_for_path, ".js".into())
+            .chunk_path(Some(Vc::upcast(self)), *this.ident_for_path, ".js".into())
             .append(".map".into()))
     }
 }
