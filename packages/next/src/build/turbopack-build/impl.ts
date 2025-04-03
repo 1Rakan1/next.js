@@ -19,18 +19,16 @@ import loadConfig from '../../server/config'
 import { hasCustomExportOutput } from '../../export/utils'
 import { Telemetry } from '../../telemetry/storage'
 import { setGlobal } from '../../trace'
-import { isStableBuild, CanaryOnlyError } from '../../shared/lib/canary-only'
+import { warn } from '../../build/output/log'
 
 export async function turbopackBuild(): Promise<{
   duration: number
   buildTraceContext: undefined
   shutdownPromise: Promise<void>
 }> {
-  if (isStableBuild()) {
-    throw new CanaryOnlyError(
-      'Turbopack builds are only available in canary builds of Next.js.'
-    )
-  }
+  warn(
+    'Support for Turbopack builds is experimental and not yet stable. Provide feedback for Turbopack builds at https://github.com/vercel/next.js/discussions/77721'
+  )
 
   await validateTurboNextConfig({
     dir: NextBuildContext.dir!,
